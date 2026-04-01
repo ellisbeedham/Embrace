@@ -1,0 +1,10 @@
+---
+description: Safe editing for the /classes route
+globs: app/classes/**/*
+---
+
+# Classes page (`/classes`)
+
+- **Styles:** Edit `app/classes/classes.module.css` only for layout/visual changes on this page. Do **not** add or bulk-edit Classes rules in `app/globals.css` — that file powers the whole site and accidental edits break the home page.
+- **Logic & markup:** `app/classes/page.tsx` and `app/classes/layout.tsx`.
+- **If CSS/JS stops loading everywhere** (unstyled site, `/_next/static/...` 404): stop the dev server, run `npm run dev:clean` (or `rm -rf .next && npm run dev`), then hard-refresh. This is a corrupted `.next` cache, not necessarily a code bug.

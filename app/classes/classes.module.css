@@ -1,0 +1,532 @@
+.page {
+  padding-top: var(--nav-height);
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.appleSchedulePage {
+  height: calc(100vh - var(--nav-height));
+  max-height: calc(100vh - var(--nav-height));
+  overflow: hidden;
+  padding: 0 clamp(18px, 2.8vw, 40px) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scheduleHeaderPro {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-top: 12px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: clamp(28px, 3.2vw, 40px);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  font-weight: 700;
+}
+
+.calendarToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dateNavigator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 8px 12px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+}
+
+.navArrow {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  color: #1d1d1f;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.currentDateRange {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #1d1d1f;
+  min-width: min(240px, 38vw);
+  text-align: center;
+}
+
+.btnToday {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.weeklyGridPro {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.dayCol {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dayHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0 12px;
+}
+
+.activeDay .dayHeader {
+  background: transparent;
+  border-radius: 0;
+}
+
+.dDay {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #6e6e73;
+}
+
+.dDateWrapper {
+  min-width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
+}
+
+.dNum {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.dMonth {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8e8e93;
+}
+
+.cardStack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+  padding: 0 2px;
+}
+
+.classCardTall {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: linear-gradient(165deg, #ffffff 0%, #fafafe 100%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 12px 12px 14px;
+  min-height: 158px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  color: inherit;
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cTime {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.cAmpm {
+  font-size: 12px;
+  color: #86868b;
+  letter-spacing: 0.06em;
+}
+
+.cardMiddle {
+  display: flex;
+  align-items: center;
+}
+
+.cBadge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 7px;
+  padding: 4px 8px;
+}
+
+.bBoxing {
+  background: linear-gradient(180deg, #2c2c2e, #1d1d1f);
+  color: #fff;
+}
+
+.bSc {
+  background: linear-gradient(180deg, #ffe8cc, #ffd6a8);
+  color: #b45309;
+}
+
+.cardBottom {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cIcon {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  color: #86868b;
+}
+
+.cCoach {
+  font-size: 12px;
+  color: #636366;
+}
+
+.appleDisciplinesSection {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.sectionHeader {
+  margin-bottom: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: clamp(20px, 2vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.sectionSubtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #6e6e73;
+}
+
+.disciplinesTrack {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tallCard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #fff;
+  min-height: 300px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 12px 30px rgba(0, 0, 0, 0.08),
+    0 28px 48px rgba(0, 0, 0, 0.06);
+}
+
+.cardImage {
+  height: 58%;
+  background-size: cover;
+  background-position: center;
+}
+
+.cardContent {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cardHeading {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+.cardSub {
+  margin: 0;
+  font-size: 13px;
+  color: #6e6e73;
+}
+
+.appleBtnSmall {
+  align-self: flex-start;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #0071e3;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cardDrawer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateY(105%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 16px 14px 14px;
+}
+
+.cardDrawerOpen {
+  transform: translateY(0);
+}
+
+.closeDrawer {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: #fff;
+  cursor: pointer;
+}
+
+.cardDrawer h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.syllabusList {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #424245;
+}
+
+@media (max-width: 900px) {
+  .appleSchedulePage {
+    height: auto;
+    max-height: none;
+    min-height: calc(100vh - var(--nav-height));
+    overflow-y: auto;
+  }
+
+  .scheduleHeaderPro {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .calendarToolbar {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dateNavigator {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .currentDateRange {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .weeklyGridPro {
+    grid-template-columns: 1fr;
+  }
+
+  .disciplinesTrack {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(240px, 80vw);
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+}
+
+/* Restored previous weekly header/grid layout */
+.scheduleHeaderCentered {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.scheduleControls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 8px 10px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05);
+}
+
+.navArrowHuge {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  color: #1d1d1f;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.currentWeekDisplay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: min(260px, 48vw);
+  padding: 0 6px;
+}
+
+.weekLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #86868b;
+}
+
+.weekDates {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.weeklyGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dayName {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: #6e6e73;
+}
+
+.dayNum {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.dayHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0;
+}
+
+.activeDay .dayHeader {
+  background: linear-gradient(180deg, rgba(0, 122, 255, 0.12), transparent);
+  border-radius: 14px;
+}
+
+.classCard {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: linear-gradient(165deg, #ffffff 0%, #fafafe 100%);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  padding: 11px 11px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  color: inherit;
+}
+
+.cTime {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.cAmpm {
+  font-size: 11px;
+  color: #86868b;
+  letter-spacing: normal;
+}
+
+@media (max-width: 900px) {
+  .scheduleHeaderCentered {
+    align-items: flex-start;
+  }
+
+  .scheduleControls {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .weeklyGrid {
+    grid-template-columns: 1fr;
+  }
+}
