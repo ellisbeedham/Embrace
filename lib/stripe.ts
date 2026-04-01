@@ -1,9 +1,9 @@
 import Stripe from "stripe";
 
-/* Avoid crashing Next.js build / dev when env is not loaded yet; real routes must set STRIPE_SECRET_KEY. */
-const stripeSecretKey =
-  process.env.STRIPE_SECRET_KEY ||
-  "sk_test_0000000000000000000000000000000000000000000000000000000000000000";
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+if (!stripeSecretKey) {
+  throw new Error("Missing STRIPE_SECRET_KEY environment variable");
+}
 
 export const stripe = new Stripe(stripeSecretKey, {
   typescript: true,
