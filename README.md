@@ -83,3 +83,4 @@ Deploy to Vercel:
 - `lib/` – Supabase clients, Stripe config
 - `supabase/` – Database schema
 # Embrace
+# Embrace
