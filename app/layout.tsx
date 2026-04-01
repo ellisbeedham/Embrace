@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { createClient } from "@/lib/supabase/server";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,9 +25,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  try {
+    const supabase = await createClient();
+    await supabase.auth.getUser();
+  } catch {
+    /* ignore: session refresh is optional when Supabase/env is unavailable */
+  }
+
   return (
     <html lang="en" className="scroll-smooth">
       <body className={`${inter.variable} antialiased`} style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif" }}>

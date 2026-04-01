@@ -1,12 +1,10 @@
-/** @type {import('next').NextConfig} */
+/**
+ * Dev: one `next dev` only; `npm run dev` uses `scripts/dev.js` to drop TURBOPACK from env.
+ * Avoid folder names with spaces if you still see Turbopack/Edge ENOENT — move the repo to e.g. ~/embrace-app.
+ *
+ * @type {import('next').NextConfig}
+ */
 const nextConfig = {
-  /* Reduces corrupt webpack pack files on macOS (EMFILE / stale chunks → CSS+JS 404). */
-  webpack: (config, { dev }) => {
-    if (dev) {
-      config.cache = false;
-    }
-    return config;
-  },
   images: {
     remotePatterns: [
       {
