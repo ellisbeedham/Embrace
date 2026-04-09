@@ -40,14 +40,6 @@ export function Hero() {
       ref={sectionRef}
       className="hero-section h-[100svh] min-h-[640px] overflow-hidden"
     >
-      <div
-        className="pointer-events-none absolute inset-0 z-0"
-        style={{
-          background:
-            "linear-gradient(to right, rgba(28,22,21,0.48) 0%, rgba(28,22,21,0.14) 38%, transparent 68%)",
-        }}
-      />
-      <div className="hero-vignette z-0" aria-hidden />
 
       {/* Ruqsana cutout — absolute layer z-1; parallax on transform */}
       <Image

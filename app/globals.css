@@ -221,7 +221,7 @@ h4, h5, h6 { font-weight: 500; }
   color: var(--eb-white);
 }
 
-/* ── Hero: luxury boutique (fills to photo edge brown) ─ */
+/* ── Hero ─ */
 .hero-section {
   position: relative;
   width: 100vw;
@@ -230,27 +230,19 @@ h4, h5, h6 { font-weight: 500; }
   min-height: 100vh;
   min-height: 100dvh;
   overflow: hidden;
-  background-color: #5b4743;
-  background-image: url("/bkground.png");
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  image-rendering: -webkit-optimize-contrast;
-  isolation: isolate;
+  background: #1a1410;
 }
 
-/* Cutout: above wall, below copy (z-index 1 vs 10) */
+/* Full-bleed boxer image covering the entire hero */
 .hero-ruqsana-img {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  z-index: 1;
+  inset: 0;
+  z-index: 0;
   display: block;
+  width: 100%;
   height: 100%;
-  width: auto;
-  max-height: 100%;
-  object-fit: contain;
-  object-position: bottom right;
+  object-fit: cover;
+  object-position: center;
   pointer-events: none;
   image-rendering: -webkit-optimize-contrast;
 }
