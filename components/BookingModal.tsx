@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 export type BookingModalClass = {
   id: string;
   time: string;
+  duration: string;
   title: string;
   coach: string;
   location: string;
@@ -90,6 +91,8 @@ export function BookingModal({ isOpen, onClose, selectedClasses, onConfirm }: Bo
                   <p className="mt-3 text-sm font-semibold text-gray-900">{c.discipline}</p>
                   <p className="mt-1 text-sm text-gray-600">
                     {c.time}
+                    <span className="text-gray-400"> • </span>
+                    {c.duration}
                     <span className="text-gray-400"> · </span>
                     {dayStr}
                   </p>

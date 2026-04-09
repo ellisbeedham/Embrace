@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useEffect, useMemo, useState } from "react";
 import { User } from "@supabase/supabase-js";
-import { AuthModal } from "@/components/AuthModal";
 
 const navLinks = [
   { href: "/#shop",            label: "Shop" },
@@ -22,7 +21,6 @@ export function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
   /* Detect hero page to use transparent-then-solid nav */
@@ -35,13 +33,9 @@ export function Navbar() {
       (_e, session) => setUser(session?.user ?? null)
     );
     return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+  }, [supabase]);
 
   useEffect(() => setMobileOpen(false), [pathname]);
-
-  useEffect(() => {
-    setAuthModalOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -100,18 +94,17 @@ export function Navbar() {
           {user ? (
             <Link
               href="/account"
-              className={`text-[13px] font-medium transition-colors ${
+              className={`text-[13px] font-medium px-4 py-1.5 rounded-full border transition-colors ${
                 textWhite
-                  ? "text-white hover:text-white/70"
-                  : "text-embrace-black hover:text-embrace-muted"
+                  ? "border-white/60 text-white hover:bg-white/10"
+                  : "border-embrace-black text-embrace-black hover:bg-embrace-black hover:text-white"
               }`}
             >
               Account
             </Link>
           ) : (
-            <button
-              type="button"
-              onClick={() => setAuthModalOpen(true)}
+            <Link
+              href="/login"
               className={`text-[13px] font-medium px-4 py-1.5 rounded-full border transition-colors ${
                 textWhite
                   ? "border-white/60 text-white hover:bg-white/10"
@@ -119,7 +112,7 @@ export function Navbar() {
               }`}
             >
               Sign In
-            </button>
+            </Link>
           )}
         </div>
 
@@ -128,18 +121,21 @@ export function Navbar() {
           {user ? (
             <Link
               href="/account"
-              className={`text-[13px] font-medium ${textWhite ? "text-white" : "text-embrace-black"}`}
+              className={`text-[13px] font-medium rounded-full border px-3 py-1.5 transition-colors ${
+                textWhite
+                  ? "border-white/60 text-white hover:bg-white/10"
+                  : "border-embrace-black text-embrace-black hover:bg-embrace-black hover:text-white"
+              }`}
             >
               Account
             </Link>
           ) : (
-            <button
-              type="button"
-              onClick={() => setAuthModalOpen(true)}
+            <Link
+              href="/login"
               className={`text-[13px] font-medium ${textWhite ? "text-white" : "text-embrace-black"}`}
             >
               Sign In
-            </button>
+            </Link>
           )}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
@@ -169,7 +165,6 @@ export function Navbar() {
           ))}
         </div>
       )}
-      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </nav>
   );
 }

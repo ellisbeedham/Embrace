@@ -1,23 +1,36 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { MapPin } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
+import { ChevronRight, MapPin, Star } from "lucide-react";
 import { bookClasses } from "@/app/actions/booking";
-import { BookingModal } from "@/components/BookingModal";
-import { MembershipStatus } from "@/components/MembershipStatus";
+import { BookingCheckoutModal } from "@/components/BookingCheckoutModal";
+import { BookingSuccessTicket } from "@/components/BookingSuccessTicket";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { isBookingDevBypass } from "@/lib/bookingDevBypass";
+import {
+  addCalendarDaysLondon,
+  formatLongDateLondon,
+  formatMonthYearLondon,
+  getLondonYmd,
+  getLondonWeekdaySun0,
+  LONDON_TZ,
+  londonCalendarDiffDays,
+  londonYmdToUtcNoon,
+} from "@/lib/londonCalendar";
 import styles from "./classes.module.css";
 
-const UI_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif';
-
-/** Uniform day-column card height: fits two class rows without scrolling */
-const DAY_BOX_H = "h-[400px]";
+const UI_FONT = 'var(--font-inter), "Inter", ui-sans-serif, system-ui, sans-serif';
 
 type WeekEntry = {
   discipline: string;
   label: string;
   time: string;
+  duration: string;
   coach: string;
+  coachImage?: string;
   location: string;
 };
 
@@ -25,6 +38,8 @@ type DayColumn = {
   name: string;
   date: Date;
   entries: WeekEntry[];
+  isToday: boolean;
+  londonYmd: { y: number; m: number; d: number };
 };
 
 type DisciplineCard = {
@@ -34,11 +49,12 @@ type DisciplineCard = {
   syllabus: string[];
 };
 
-/** One selected booking slot (id is stable per date + entry) */
+/** One booking slot (id is stable per date + entry) */
 type SelectedClass = {
   id: string;
   date: Date;
   time: string;
+  duration: string;
   title: string;
   coach: string;
   location: string;
@@ -48,29 +64,31 @@ type SelectedClass = {
 function disciplineBadgeClass(discipline: string): string {
   const d = discipline.trim();
   if (d === "Boxing") {
-    return "bg-blue-50 text-blue-700 border-blue-100/50";
+    return "border border-blue-100 bg-blue-50/70 text-blue-800";
   }
   if (d === "Muay Thai" || d === "Muay Thai Padwork") {
-    return "bg-red-50 text-red-700 border-red-100/50";
+    return "border border-rose-100 bg-rose-50/70 text-rose-800";
   }
-  if (d === "Strength and Cond.") {
-    return "bg-orange-50 text-orange-700 border-orange-100/50";
+  if (d === "Strength & Conditioning") {
+    return "border border-amber-100 bg-amber-50/70 text-amber-900";
   }
-  return "bg-gray-50 text-gray-700 border-gray-200";
+  return "border border-gray-200 bg-gray-50 text-gray-800";
 }
 
-function shortWeekLabel(start: Date): string {
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const aMon = start.toLocaleString("en-GB", { month: "short" });
-  const bMon = end.toLocaleString("en-GB", { month: "short" });
-  const year = end.getFullYear();
-  return `${aMon} ${start.getDate()} – ${bMon} ${end.getDate()}, ${year}`;
+function renderClassTitle(label: string) {
+  if (label !== "Strength & Conditioning") return label;
+  return (
+    <>
+      Strength <span className="italic font-medium">&</span> Conditioning
+    </>
+  );
 }
 
-function coachLocationSummary(c: SelectedClass): string {
-  const parts = [c.coach.trim(), c.location.trim()].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : "—";
+/** Normalize to the two valid studio locations. */
+function displayLocation(raw: string): "Lion Club" | "KO Combat Academy" {
+  const s = raw.trim().toLowerCase();
+  if (s.includes("lion")) return "Lion Club";
+  return "KO Combat Academy";
 }
 
 const DISCIPLINES: DisciplineCard[] = [
@@ -97,7 +115,7 @@ const DISCIPLINES: DisciplineCard[] = [
     ],
   },
   {
-    heading: "Strength & Cond.",
+    heading: "Strength & Conditioning",
     sub: "Build Unbreakable Power",
     image:
       "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=600&auto=format&fit=crop",
@@ -131,22 +149,23 @@ const DISCIPLINES: DisciplineCard[] = [
   },
 ];
 
-/** getDay(): 0 Sun … 6 Sat — mapped to rolling week from Today */
 const WEEKDAY_CLASSES: Record<number, WeekEntry[]> = {
   0: [
     {
       discipline: "Muay Thai",
       label: "Muay Thai",
       time: "12:00 PM",
+      duration: "60 min",
       coach: "Ruqsana Begum",
-      location: "Embrace",
+      location: "KO Combat Academy",
     },
     {
-      discipline: "Strength and Cond.",
-      label: "Strength and Cond.",
+      discipline: "Strength & Conditioning",
+      label: "Strength & Conditioning",
       time: "1:00 PM",
+      duration: "45 min",
       coach: "Embrace Team",
-      location: "",
+      location: "Lion Club",
     },
   ],
   1: [],
@@ -155,8 +174,9 @@ const WEEKDAY_CLASSES: Record<number, WeekEntry[]> = {
       discipline: "Boxing",
       label: "Boxing",
       time: "7:00 PM",
+      duration: "60 min",
       coach: "Embrace Team",
-      location: "Lion",
+      location: "Lion Club",
     },
   ],
   3: [
@@ -164,8 +184,9 @@ const WEEKDAY_CLASSES: Record<number, WeekEntry[]> = {
       discipline: "Muay Thai Padwork",
       label: "Muay Thai Padwork",
       time: "7:00 PM",
+      duration: "60 min",
       coach: "Embrace Team",
-      location: "",
+      location: "KO Combat Academy",
     },
   ],
   4: [
@@ -173,8 +194,9 @@ const WEEKDAY_CLASSES: Record<number, WeekEntry[]> = {
       discipline: "Boxing",
       label: "Boxing",
       time: "7:00 PM",
+      duration: "60 min",
       coach: "Embrace Team",
-      location: "Lion",
+      location: "Lion Club",
     },
   ],
   5: [],
@@ -183,29 +205,24 @@ const WEEKDAY_CLASSES: Record<number, WeekEntry[]> = {
       discipline: "Boxing",
       label: "Boxing",
       time: "10:30 AM",
+      duration: "60 min",
       coach: "Embrace Team",
-      location: "KO",
+      location: "KO Combat Academy",
     },
   ],
 };
 
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+function classId(anchor: Date, entry: WeekEntry): string {
+  const { y, m, d } = getLondonYmd(anchor);
+  return `${y}-${m}-${d}-${entry.time}-${entry.label}-${entry.coach}-${entry.location}`;
 }
 
-function classId(date: Date, entry: WeekEntry): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${entry.time}-${entry.label}-${entry.coach}-${entry.location}`;
-}
-
-function entryToSelected(colDate: Date, entry: WeekEntry): SelectedClass {
+function entryToSelected(anchor: Date, entry: WeekEntry): SelectedClass {
   return {
-    id: classId(colDate, entry),
-    date: new Date(colDate),
+    id: classId(anchor, entry),
+    date: new Date(anchor),
     time: entry.time,
+    duration: entry.duration,
     title: entry.label,
     coach: entry.coach,
     location: entry.location,
@@ -213,255 +230,498 @@ function entryToSelected(colDate: Date, entry: WeekEntry): SelectedClass {
   };
 }
 
-export default function ClassesPage() {
-  const now = useMemo(() => {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    return d;
-  }, []);
-  const [weekStart, setWeekStart] = useState<Date>(() => {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    return d;
-  });
-  const [openDrawer, setOpenDrawer] = useState<number | null>(null);
-  const [selectedClasses, setSelectedClasses] = useState<SelectedClass[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const columns = useMemo<DayColumn[]>(() => {
-    return Array.from({ length: 7 }, (_, idx) => {
-      const date = new Date(weekStart);
-      date.setDate(weekStart.getDate() + idx);
-      const name = date
-        .toLocaleDateString("en-GB", { weekday: "short" })
-        .toUpperCase();
-      return {
-        name,
-        date,
-        entries: WEEKDAY_CLASSES[date.getDay()] ?? [],
-      };
-    });
-  }, [weekStart]);
-
-  const columnHasSelectedClass = (colDate: Date) =>
-    selectedClasses.some((c) => isSameDay(c.date, colDate));
-
-  const toggleSelectedClass = (item: SelectedClass) => {
-    setSelectedClasses((prev) => {
-      const exists = prev.some((s) => s.id === item.id);
-      if (exists) return prev.filter((s) => s.id !== item.id);
-      return [...prev, item];
-    });
-  };
-
-  useEffect(() => {
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(now);
-      date.setDate(now.getDate() + i);
-      const entries = WEEKDAY_CLASSES[date.getDay()];
-      if (entries && entries.length > 0) {
-        const entry = entries[0];
-        setSelectedClasses([entryToSelected(date, entry)]);
-        break;
+/** Rolling search in London dates; returns offset from UK today (0 = today). */
+function findSlotByIdLondon(slotId: string): { dayIndex: number; selected: SelectedClass } | null {
+  const today = getLondonYmd(new Date());
+  for (let delta = -42; delta <= 42; delta++) {
+    const { y, m, d } = addCalendarDaysLondon(today.y, today.m, today.d, delta);
+    const anchor = londonYmdToUtcNoon(y, m, d);
+    const wd = getLondonWeekdaySun0(y, m, d);
+    const entries = WEEKDAY_CLASSES[wd] ?? [];
+    for (const entry of entries) {
+      const sel = entryToSelected(anchor, entry);
+      if (sel.id === slotId) {
+        const idx = londonCalendarDiffDays({ y, m, d }, today);
+        return { dayIndex: idx, selected: sel };
       }
     }
-  }, [now]);
+  }
+  return null;
+}
 
-  const goPrev = () => {
-    const x = new Date(weekStart);
-    x.setDate(weekStart.getDate() - 7);
-    setWeekStart(x);
+function buildLondonWeekColumns(): DayColumn[] {
+  const t = getLondonYmd(new Date());
+  return Array.from({ length: 7 }, (_, idx) => {
+    const { y, m, d } = addCalendarDaysLondon(t.y, t.m, t.d, idx);
+    const anchor = londonYmdToUtcNoon(y, m, d);
+    const wd = getLondonWeekdaySun0(y, m, d);
+    const name = anchor
+      .toLocaleDateString("en-GB", { weekday: "short", timeZone: LONDON_TZ })
+      .toUpperCase();
+    return {
+      name,
+      date: anchor,
+      entries: WEEKDAY_CLASSES[wd] ?? [],
+      isToday: idx === 0,
+      londonYmd: { y, m, d },
+    };
+  });
+}
+
+function membershipStatusView(tier: string, credits: number, signedIn: boolean, devBypass: boolean) {
+  if (!signedIn) {
+    return {
+      label: "GUEST PASS",
+      tone: "border border-gray-200/80 bg-white/70 text-gray-700 backdrop-blur-sm",
+      star: false,
+    };
+  }
+  if (devBypass || tier === "unlimited") {
+    return {
+      label: "UNLIMITED ACCESS",
+      tone:
+        "border border-amber-200/60 bg-gradient-to-r from-[#1b1a18]/95 via-[#2a261f]/95 to-[#1b1a18]/95 text-[#f1d48f] shadow-lg shadow-black/20 backdrop-blur-sm",
+      star: true,
+    };
+  }
+  if (tier === "10-pack" || tier === "class-pack") {
+    return {
+      label: `${Math.max(0, credits)} CLASSES REMAINING`,
+      tone: "border border-gray-200/80 bg-white/75 text-gray-800 backdrop-blur-sm",
+      star: false,
+    };
+  }
+  return {
+    label: "NO ACTIVE PLAN",
+    tone: "border border-gray-200/80 bg-white/70 text-gray-700 backdrop-blur-sm",
+    star: false,
   };
+}
 
-  const goNext = () => {
-    const x = new Date(weekStart);
-    x.setDate(weekStart.getDate() + 7);
-    setWeekStart(x);
-  };
+function ClassesScheduleContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const bookParam = searchParams.get("book");
 
-  const handleBookingConfirm = useCallback(async () => {
-    const payload = selectedClasses.map((c) => ({
-      ...c,
-      date: c.date.toISOString(),
-    }));
-    const result = await bookClasses(payload);
-    if (result.success) {
-      setSelectedClasses([]);
-      setIsModalOpen(false);
-      window.alert(result.message);
+  const [openDrawer, setOpenDrawer] = useState<number | null>(null);
+  const [bookingNotice, setBookingNotice] = useState<string | null>(null);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  /** Rebuild London "today" strip when the calendar day may have changed. */
+  const [stripVersion, setStripVersion] = useState(0);
+  const [fastBookingId, setFastBookingId] = useState<string | null>(null);
+
+  const [user, setUser] = useState<User | null>(null);
+  const [tier, setTier] = useState<string>("none");
+  const [credits, setCredits] = useState(0);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+
+  const [successTicket, setSuccessTicket] = useState<{
+    classItem: SelectedClass;
+    scheduledAtIso: string;
+    creditsRemaining?: number;
+    tier: string;
+  } | null>(null);
+  const [checkoutClass, setCheckoutClass] = useState<SelectedClass | null>(null);
+
+  const devBypass = useMemo(() => isBookingDevBypass(), []);
+
+  const supabase = useMemo(() => createClient(), []);
+  /** Prevents duplicate auto-book for the same URL param in one session (success only). */
+  const autoBookSucceededKeys = useRef<Set<string>>(new Set());
+  const autoBookInFlight = useRef(false);
+  const profileChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    const tick = () => setStripVersion((v) => v + 1);
+    const id = window.setInterval(tick, 60_000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  const columns = useMemo<DayColumn[]>(() => buildLondonWeekColumns(), [stripVersion]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setProfileLoaded(true);
+      return;
     }
-  }, [selectedClasses]);
+    let mounted = true;
+
+    async function syncMembershipForUser(userId: string) {
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("membership_tier, class_credits_remaining")
+        .eq("id", userId)
+        .maybeSingle();
+      if (!mounted) return;
+      setTier(p?.membership_tier ?? "none");
+      setCredits(typeof p?.class_credits_remaining === "number" ? p.class_credits_remaining : 0);
+      setProfileLoaded(true);
+    }
+
+    function stopProfileChannel() {
+      if (!profileChannelRef.current) return;
+      void supabase.removeChannel(profileChannelRef.current);
+      profileChannelRef.current = null;
+    }
+
+    function startProfileChannel(userId: string) {
+      stopProfileChannel();
+      const channel = supabase
+        .channel(`classes-profile-${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${userId}`,
+          },
+          () => {
+            void syncMembershipForUser(userId);
+          }
+        )
+        .subscribe();
+      profileChannelRef.current = channel;
+    }
+
+    async function load() {
+      const {
+        data: { user: u },
+      } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setUser(u);
+      if (!u) {
+        setTier("none");
+        setCredits(0);
+        setProfileLoaded(true);
+        stopProfileChannel();
+        return;
+      }
+      await syncMembershipForUser(u.id);
+      startProfileChannel(u.id);
+    }
+
+    void load();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return;
+      const u = session?.user ?? null;
+      setUser(u);
+      if (!u) {
+        setTier("none");
+        setCredits(0);
+        setProfileLoaded(true);
+        stopProfileChannel();
+        return;
+      }
+      void syncMembershipForUser(u.id);
+      startProfileChannel(u.id);
+    });
+
+    return () => {
+      mounted = false;
+      stopProfileChannel();
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!bookParam || !profileLoaded || !user) return;
+    const dedupeKey = `${user.id}:${bookParam}`;
+    if (autoBookSucceededKeys.current.has(dedupeKey)) return;
+    if (autoBookInFlight.current) return;
+
+    const tierOk =
+      devBypass || tier === "unlimited" || (tier === "class-pack" && credits > 0);
+    const found = findSlotByIdLondon(bookParam);
+    if (!found) {
+      setBookingNotice("That class isn’t on the schedule for visible weeks.");
+      router.replace("/classes", { scroll: false });
+      return;
+    }
+    if (found.dayIndex < 0 || found.dayIndex > 6) {
+      setBookingNotice("That class isn’t in the current 7-day window (today through next 6 days).");
+      if (!tierOk) {
+        setCheckoutClass(found.selected);
+      }
+      router.replace("/classes", { scroll: false });
+      return;
+    }
+    setSelectedDayIndex(found.dayIndex);
+    if (!tierOk) {
+      setCheckoutClass(found.selected);
+      router.replace("/classes", { scroll: false });
+      return;
+    }
+    const item = found.selected;
+    setFastBookingId(item.id);
+    autoBookInFlight.current = true;
+    void (async () => {
+      try {
+        const result = await bookClasses([
+          {
+            title: item.title,
+            discipline: item.discipline,
+            coach: item.coach,
+            date: item.date.toISOString(),
+            time: item.time,
+          },
+        ]);
+        setFastBookingId(null);
+        router.replace("/classes", { scroll: false });
+        if (result.success) {
+          autoBookSucceededKeys.current.add(dedupeKey);
+          setSuccessTicket({
+            classItem: item,
+            scheduledAtIso: result.scheduledAt!,
+            creditsRemaining: result.creditsRemaining,
+            tier: result.membershipTier ?? tier,
+          });
+          if ((result.membershipTier ?? tier) === "class-pack" && typeof result.creditsRemaining === "number") {
+            setCredits(result.creditsRemaining);
+          }
+        } else {
+          setBookingNotice(result.message);
+        }
+      } finally {
+        autoBookInFlight.current = false;
+      }
+    })();
+  }, [bookParam, profileLoaded, user, tier, credits, router, devBypass]);
+
+  const canBookWithMembership =
+    devBypass || tier === "unlimited" || (tier === "class-pack" && credits > 0);
+
+  const handleBook = useCallback(
+    async (item: SelectedClass) => {
+      setBookingNotice(null);
+      if (!isSupabaseConfigured()) {
+        setBookingNotice("Add Supabase keys to book classes.");
+        return;
+      }
+      if (!user) {
+        const next = `/classes?book=${encodeURIComponent(item.id)}`;
+        router.push(`/login?redirectTo=${encodeURIComponent(next)}`);
+        return;
+      }
+      if (!canBookWithMembership) {
+        setCheckoutClass(item);
+        return;
+      }
+
+      setFastBookingId(item.id);
+      const result = await bookClasses([
+        {
+          title: item.title,
+          discipline: item.discipline,
+          coach: item.coach,
+          date: item.date.toISOString(),
+          time: item.time,
+        },
+      ]);
+      setFastBookingId(null);
+
+      if (result.success) {
+        setSuccessTicket({
+          classItem: item,
+          scheduledAtIso: result.scheduledAt!,
+          creditsRemaining: result.creditsRemaining,
+          tier: result.membershipTier ?? tier,
+        });
+        if ((result.membershipTier ?? tier) === "class-pack" && typeof result.creditsRemaining === "number") {
+          setCredits(result.creditsRemaining);
+        }
+      } else {
+        setBookingNotice(result.message);
+      }
+    },
+    [user, tier, credits, router, canBookWithMembership]
+  );
+
+  const handleCheckoutSuccess = useCallback(
+    (payload: {
+      classItem: SelectedClass;
+      scheduledAtIso: string;
+      creditsRemaining?: number;
+      tier: string;
+    }) => {
+      setCheckoutClass(null);
+      setTier(payload.tier);
+      if (payload.tier === "class-pack" && typeof payload.creditsRemaining === "number") {
+        setCredits(payload.creditsRemaining);
+      } else if (payload.tier === "unlimited") {
+        setCredits(0);
+      }
+      setSuccessTicket({
+        classItem: payload.classItem,
+        scheduledAtIso: payload.scheduledAtIso,
+        creditsRemaining: payload.creditsRemaining,
+        tier: payload.tier,
+      });
+    },
+    []
+  );
+
+  const selectedColumn = columns[selectedDayIndex] ?? columns[0];
+  const statusBadge = membershipStatusView(tier, credits, !!user, devBypass);
+
+  const creditsLine =
+    successTicket?.tier === "class-pack" && typeof successTicket.creditsRemaining === "number"
+      ? `This class used 1 credit. ${successTicket.creditsRemaining} remaining.`
+      : null;
 
   return (
     <div className={styles.page} style={{ fontFamily: UI_FONT }}>
-      {/* Use div, not <main> — root layout already provides a single <main> landmark */}
       <div className={styles.appleSchedulePage}>
-        <header className={styles.scheduleHeaderCentered}>
-          <h1 className={styles.pageTitle}>Class Schedule</h1>
-
-          <div className={styles.scheduleControls}>
-            <button className={styles.navArrowHuge} aria-label="Previous Week" onClick={goPrev}>
-              <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-
-            <div className={styles.currentWeekDisplay}>
-              <span className={styles.weekLabel}>
-                {isSameDay(weekStart, now) ? "Next 7 Days" : "Upcoming"}
-              </span>
-              <span className={styles.weekDates}>{shortWeekLabel(weekStart)}</span>
+        <header className="mx-auto w-full max-w-5xl px-4 md:px-8">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400">London (UK)</p>
+              <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">
+                {selectedColumn ? formatMonthYearLondon(selectedColumn.date) : ""}
+              </h1>
             </div>
-
-            <button className={styles.navArrowHuge} aria-label="Next Week" onClick={goNext}>
-              <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
+            <div className={`shrink-0 rounded-2xl px-4 py-3 ${statusBadge.tone}`}>
+              <div className="flex items-center gap-2">
+                {statusBadge.star ? (
+                  <Star className="h-3.5 w-3.5 fill-current text-[#f1d48f]" strokeWidth={1.8} aria-hidden />
+                ) : null}
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em]">{statusBadge.label}</p>
+              </div>
+              <Link
+                href="/account"
+                className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.14em] text-current/75 transition-colors hover:text-current"
+              >
+                Manage
+                <ChevronRight className="h-3 w-3" strokeWidth={2} aria-hidden />
+              </Link>
+            </div>
           </div>
-        </header>
-
-        <div className="mx-auto w-full max-w-[1600px] px-4 md:px-8">
-          <div className={styles.weeklyGrid}>
-            {columns.map((col) => {
-              const hasSelection = columnHasSelectedClass(col.date);
+          <div className="mt-6 flex flex-1 gap-2 overflow-x-auto pb-2 md:gap-3">
+            {columns.map((col, idx) => {
+              const active = idx === selectedDayIndex;
+              const dayNum = Number(
+                col.date.toLocaleDateString("en-GB", { day: "numeric", timeZone: LONDON_TZ })
+              );
               return (
-                <div
-                  key={`${col.name}-${col.date.getFullYear()}-${col.date.getMonth()}-${col.date.getDate()}`}
-                  className={`${styles.dayCol} ${hasSelection ? "!bg-[#E5EFFF] rounded-[2rem] !p-3" : ""}`}
+                <button
+                  key={`${col.londonYmd.y}-${col.londonYmd.m}-${col.londonYmd.d}`}
+                  type="button"
+                  onClick={() => setSelectedDayIndex(idx)}
+                  className="flex min-w-[52px] shrink-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-2 transition-colors hover:bg-gray-50"
                 >
-                  <div className={styles.dayHeader}>
-                    <span className={styles.dayName}>{col.name}</span>
-                    <span className={styles.dayNum}>{col.date.getDate()}</span>
-                  </div>
-                  <div className={`${styles.cardStack} gap-4`}>
-                    {col.entries.length === 0 ? (
-                      <div
-                        className={`flex w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-200 bg-gray-50/50 p-4 ${DAY_BOX_H}`}
-                      >
-                        <span className="text-center text-xs font-medium text-gray-400">No classes scheduled</span>
-                      </div>
-                    ) : (
-                      <div
-                        className={`flex w-full min-h-0 flex-col justify-start overflow-hidden ${DAY_BOX_H}`}
-                      >
-                        {/* Passive shell — only segment <button>s are interactive; no inner scroll */}
-                        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                          <div className="flex min-h-0 flex-1 flex-col justify-start overflow-hidden">
-                            <div className="flex min-w-0 shrink-0 flex-col divide-y divide-gray-100">
-                              {col.entries.map((entry) => {
-                                const id = classId(col.date, entry);
-                                const isSelected = selectedClasses.some((s) => s.id === id);
-                                const parts = entry.time.split(" ");
-                                const clock = parts[0] ?? "";
-                                const ampm = parts[1] ?? "";
-
-                                return (
-                                  <button
-                                    key={id}
-                                    type="button"
-                                    onClick={() => toggleSelectedClass(entryToSelected(col.date, entry))}
-                                    className={`w-full p-5 text-left transition-colors focus-visible:outline-none ${
-                                      isSelected ? "bg-blue-50/80" : "bg-white hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    <div className="flex flex-col items-start">
-                                      <span
-                                        className={`mb-3 inline-block rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${disciplineBadgeClass(entry.discipline)}`}
-                                      >
-                                        {entry.label}
-                                      </span>
-                                      <div className="flex items-baseline gap-1 whitespace-nowrap">
-                                        <span className="text-2xl font-bold tracking-tight text-gray-900">{clock}</span>
-                                        <span className="text-sm font-semibold text-gray-400">{ampm}</span>
-                                      </div>
-                                      {(entry.coach || entry.location) && (
-                                        <div className="mt-4 flex w-full min-w-0 flex-col gap-1.5">
-                                          {entry.coach ? (
-                                            <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
-                                              <svg
-                                                className="h-3.5 w-3.5 shrink-0 text-gray-400"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth={2}
-                                                aria-hidden
-                                              >
-                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                                <circle cx="12" cy="7" r="4" />
-                                              </svg>
-                                              <span className="truncate">{entry.coach}</span>
-                                            </div>
-                                          ) : null}
-                                          {entry.location ? (
-                                            <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
-                                              <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} aria-hidden />
-                                              <span className="truncate">{entry.location}</span>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            <div className="min-h-0 flex-1 bg-white" aria-hidden />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  <span
+                    className={
+                      col.isToday
+                        ? "text-[9px] font-bold uppercase tracking-[0.18em] text-[#b08c2e]"
+                        : "text-[9px] font-semibold uppercase tracking-[0.18em] text-gray-400"
+                    }
+                  >
+                    {col.isToday ? "Today" : col.name}
+                  </span>
+                  <span
+                    className={`grid h-11 w-11 place-items-center rounded-full text-sm font-semibold transition-all md:h-12 md:w-12 md:text-base ${
+                      col.isToday
+                        ? active
+                          ? "bg-gray-950 text-white shadow-lg shadow-black/25 ring-2 ring-[#c9a44a]/80 ring-offset-2 ring-offset-white"
+                          : "bg-white text-gray-950 ring-2 ring-gray-900 ring-offset-2 ring-offset-[#fafafa] shadow-sm"
+                        : active
+                          ? "bg-black text-white shadow-sm"
+                          : "border border-gray-100 bg-white text-gray-800 hover:border-gray-200"
+                    }`}
+                  >
+                    {dayNum}
+                  </span>
+                </button>
               );
             })}
           </div>
-        </div>
+        </header>
 
-        <section className="mx-auto flex w-full max-w-5xl flex-col items-stretch gap-4 rounded-2xl border border-gray-200 bg-white/80 px-6 py-4 shadow-sm backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-          <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-            <MembershipStatus status="unlimited" compact />
-            <div className="hidden h-8 w-px shrink-0 bg-gray-200 sm:block" aria-hidden />
-            <div className="flex min-w-0 flex-1 flex-col gap-2 text-left">
-              {selectedClasses.length === 0 ? (
-                <span className="text-sm text-gray-400">Select a class to continue</span>
-              ) : (
-                selectedClasses.map((c) => (
-                  <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <span
-                      className={`inline-flex shrink-0 items-center rounded-md border px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest ${disciplineBadgeClass(c.discipline)}`}
-                    >
-                      {c.title}
-                    </span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {c.time}
-                      <span className="font-normal text-gray-500"> • {coachLocationSummary(c)}</span>
-                    </span>
-                  </div>
-                ))
-              )}
+        <div className="mx-auto w-full max-w-5xl px-4 md:px-8">
+          <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+            <div className="border-b border-gray-100 px-6 py-5 md:px-8">
+              <h2 className="text-lg font-semibold tracking-tight text-gray-900">
+                {selectedColumn ? formatLongDateLondon(selectedColumn.date) : "Weekly Agenda"}
+              </h2>
+              {bookingNotice ? (
+                <p className="mt-2 text-xs font-medium text-amber-800">{bookingNotice}</p>
+              ) : null}
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => selectedClasses.length > 0 && setIsModalOpen(true)}
-            className={`inline-flex w-full shrink-0 items-center justify-center self-center rounded-full px-6 py-3 text-sm font-semibold text-white transition-all duration-200 sm:w-auto ${
-              selectedClasses.length > 0
-                ? "bg-black hover:scale-[1.02] active:scale-[0.98]"
-                : "cursor-not-allowed bg-black/25"
-            }`}
-            disabled={selectedClasses.length === 0}
-          >
-            Book Class
-          </button>
-        </section>
 
-        <BookingModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          selectedClasses={selectedClasses}
-          onConfirm={handleBookingConfirm}
-        />
+            {!selectedColumn || selectedColumn.entries.length === 0 ? (
+              <div className="px-6 py-10 text-sm text-gray-400 md:px-8">No classes scheduled</div>
+            ) : (
+              selectedColumn.entries.map((entry) => {
+                const item = entryToSelected(selectedColumn.date, entry);
+                const loading = fastBookingId === item.id;
+                const venue = displayLocation(entry.location);
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-5 border-t border-gray-100 px-6 py-6 md:flex-row md:items-center md:px-8"
+                  >
+                    <div className="shrink-0 text-sm font-semibold tabular-nums text-gray-900 md:w-[128px]">
+                      {entry.time}
+                      <span className="block text-xs font-medium text-gray-500 md:mt-1">{entry.duration}</span>
+                    </div>
+
+                    <div className="shrink-0">
+                      <img
+                        src={
+                          entry.coachImage ||
+                          "https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=120&auto=format&fit=crop"
+                        }
+                        alt={entry.coach || "Coach"}
+                        className="h-12 w-12 rounded-full object-cover ring-1 ring-gray-100"
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1 space-y-3">
+                      <div>
+                        <p className="text-base font-semibold tracking-tight text-gray-900">
+                          {renderClassTitle(entry.label)}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">{entry.coach || "Embrace Team"}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${disciplineBadgeClass(entry.discipline)}`}
+                        >
+                          {entry.discipline}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-600">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-gray-400" strokeWidth={2} aria-hidden />
+                          {venue}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 md:justify-end">
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => void handleBook(item)}
+                        className="min-w-[168px] rounded-full border border-[#1f1f22] bg-black px-7 py-3 text-sm font-semibold uppercase tracking-widest text-white shadow-md shadow-black/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-55"
+                      >
+                        {loading ? "Booking…" : "Book"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </section>
+        </div>
 
         <section className={styles.appleDisciplinesSection}>
           <div className={styles.sectionHeader}>
@@ -504,6 +764,42 @@ export default function ClassesPage() {
           </div>
         </section>
       </div>
+
+      {checkoutClass ? (
+        <BookingCheckoutModal
+          open
+          classItem={checkoutClass}
+          onClose={() => setCheckoutClass(null)}
+          onSuccess={handleCheckoutSuccess}
+        />
+      ) : null}
+
+      {successTicket ? (
+        <BookingSuccessTicket
+          classItem={successTicket.classItem}
+          scheduledAtIso={successTicket.scheduledAtIso}
+          creditsLine={creditsLine}
+          onClose={() => setSuccessTicket(null)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function ClassesScheduleFallback() {
+  return (
+    <div className={styles.page} style={{ fontFamily: UI_FONT }}>
+      <div className={`${styles.appleSchedulePage} flex min-h-[40vh] items-center justify-center px-6 text-sm text-gray-500`}>
+        Loading schedule…
+      </div>
+    </div>
+  );
+}
+
+export default function ClassesPage() {
+  return (
+    <Suspense fallback={<ClassesScheduleFallback />}>
+      <ClassesScheduleContent />
+    </Suspense>
   );
 }
